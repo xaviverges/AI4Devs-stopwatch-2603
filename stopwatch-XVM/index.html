@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Stopwatch &amp; Countdown Timer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --display-bg: #e8eaf6;
+      --font-mono: 'Courier New', 'Lucida Console', monospace;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      color: #1a1a1a;
+    }
+
+    .app {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.15);
+      padding: 2rem;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.4rem;
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── Mode toggle ── */
+    .mode-toggle {
+      display: flex;
+      background: #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: .6rem 1rem;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background .2s, color .2s;
+    }
+    .mode-btn.active { background: #3949ab; color: #fff; }
+    .mode-btn:focus-visible { outline: 3px solid #3949ab; outline-offset: 2px; }
+
+    /* ── Display ── */
+    .display-wrap {
+      background: var(--display-bg);
+      border: 3px solid #1a1a1a;
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem 1rem;
+      margin-bottom: 1.2rem;
+    }
+    .time-display {
+      font-family: var(--font-mono);
+      font-size: clamp(3rem, 13vw, 5.5rem);
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      line-height: 1.1;
+    }
+    .millis-display {
+      font-family: var(--font-mono);
+      font-size: clamp(.9rem, 2.5vw, 1.2rem);
+      text-align: right;
+      color: #555;
+      margin-top: .2rem;
+    }
+
+    /* ── Countdown input ── */
+    .cd-inputs {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: .8rem;
+      margin-bottom: 1.2rem;
+    }
+    .cd-inputs.visible { display: flex; }
+    .cd-row {
+      display: flex;
+      align-items: flex-end;
+      gap: .4rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .3rem;
+    }
+    .field label {
+      font-size: .7rem;
+      font-weight: 700;
+      color: #888;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .stepper {
+      display: flex;
+      align-items: center;
+      background: #f4f4f8;
+      border: 2px solid #d0d0e0;
+      border-radius: 40px;
+      overflow: hidden;
+      transition: border-color .15s;
+    }
+    .stepper:focus-within { border-color: #3949ab; }
+
+    .step-btn {
+      width: 34px;
+      height: 44px;
+      border: none;
+      background: transparent;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #3949ab;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .12s;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .step-btn:hover  { background: #e8eaf6; }
+    .step-btn:active { background: #c5cae9; }
+    .step-btn:focus-visible {
+      outline: 2px solid #3949ab;
+      outline-offset: -2px;
+      border-radius: 40px;
+    }
+
+    .stepper input {
+      width: 46px;
+      border: none;
+      background: transparent;
+      font-size: 1.4rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      text-align: center;
+      color: #1a1a1a;
+      padding: 0;
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    .stepper input::-webkit-inner-spin-button,
+    .stepper input::-webkit-outer-spin-button { display: none; }
+
+    .sep {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #999;
+      padding-bottom: .55rem;
+    }
+
+    /* ── Buttons ── */
+    .controls {
+      display: flex;
+      gap: 1rem;
+    }
+    .btn {
+      flex: 1;
+      padding: .9rem 1rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #1a1a1a;
+      box-shadow: 0 3px 6px rgba(0,0,0,.2);
+      transition: filter .15s, transform .1s, box-shadow .1s;
+    }
+    .btn:active { transform: translateY(2px); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .btn:focus-visible { outline: 3px solid #1a1a1a; outline-offset: 2px; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn:not(:disabled):hover { filter: brightness(.9); }
+
+    .btn-start  { background: #2ecc40; }
+    .btn-pause  { background: #ff851b; }
+    .btn-clear  { background: #ff4136; }
+    .btn-lap    { background: #0074d9; color: #fff; }
+
+    /* ── Laps ── */
+    .laps-section {
+      margin-top: 1.4rem;
+      max-height: 190px;
+      overflow-y: auto;
+    }
+    .laps-section h2 { font-size: .9rem; color: #666; margin-bottom: .4rem; }
+    .lap-list { list-style: none; font-family: var(--font-mono); font-size: .9rem; }
+    .lap-list li {
+      display: grid;
+      grid-template-columns: 5rem 1fr 1fr;
+      gap: .5rem;
+      padding: .3rem .2rem;
+      border-bottom: 1px solid #eee;
+    }
+    .lap-list li:nth-child(even) { background: #f9f9f9; }
+    .lap-list .col-right { text-align: right; }
+
+    /* ── Finished animation ── */
+    .display-wrap.finished {
+      animation: flash .5s infinite alternate;
+    }
+    @keyframes flash {
+      from { background: var(--display-bg); }
+      to   { background: #ffcccc; }
+    }
+
+    /* ── Keyboard hint ── */
+    .hint {
+      margin-top: .9rem;
+      font-size: .72rem;
+      color: #999;
+      text-align: center;
+    }
+    kbd {
+      background: #eee;
+      border: 1px solid #bbb;
+      border-radius: 3px;
+      padding: .1rem .3rem;
+      font-size: .7rem;
+    }
+
+    /* ── SR only ── */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+    }
+
+    @media (max-width: 380px) {
+      .controls { flex-wrap: wrap; }
+      .btn { min-width: 45%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" role="main">
+    <h1>Stopwatch &amp; Countdown Timer</h1>
+
+    <!-- Mode switch -->
+    <div class="mode-toggle" role="tablist" aria-label="Timer mode">
+      <button class="mode-btn active" id="btn-stopwatch"
+              role="tab" aria-selected="true">⏱ Stopwatch</button>
+      <button class="mode-btn" id="btn-countdown"
+              role="tab" aria-selected="false">⏳ Countdown</button>
+    </div>
+
+    <!-- Display -->
+    <div class="display-wrap" id="display-wrap">
+      <div class="time-display" id="time-display"
+           role="timer" aria-live="off" aria-atomic="true"
+           aria-label="Time display">00:00:00</div>
+      <div class="millis-display" id="millis-display" aria-hidden="true">000</div>
+    </div>
+
+    <!-- Countdown inputs -->
+    <div class="cd-inputs" id="cd-inputs" role="group" aria-label="Set countdown time">
+      <div class="cd-row">
+        <div class="field">
+          <label for="inp-h">HH</label>
+          <div class="stepper" role="group" aria-label="Hours">
+            <button class="step-btn step-down" data-target="inp-h" aria-label="Decrease hours">−</button>
+            <input type="text" id="inp-h" inputmode="numeric" pattern="[0-9]*"
+                   value="00" maxlength="2" autocomplete="off" aria-label="Hours 0 to 99">
+            <button class="step-btn step-up" data-target="inp-h" aria-label="Increase hours">+</button>
+          </div>
+        </div>
+        <span class="sep" aria-hidden="true">:</span>
+        <div class="field">
+          <label for="inp-m">MM</label>
+          <div class="stepper" role="group" aria-label="Minutes">
+            <button class="step-btn step-down" data-target="inp-m" aria-label="Decrease minutes">−</button>
+            <input type="text" id="inp-m" inputmode="numeric" pattern="[0-9]*"
+                   value="08" maxlength="2" autocomplete="off" aria-label="Minutes 0 to 59">
+            <button class="step-btn step-up" data-target="inp-m" aria-label="Increase minutes">+</button>
+          </div>
+        </div>
+        <span class="sep" aria-hidden="true">:</span>
+        <div class="field">
+          <label for="inp-s">SS</label>
+          <div class="stepper" role="group" aria-label="Seconds">
+            <button class="step-btn step-down" data-target="inp-s" aria-label="Decrease seconds">−</button>
+            <input type="text" id="inp-s" inputmode="numeric" pattern="[0-9]*"
+                   value="00" maxlength="2" autocomplete="off" aria-label="Seconds 0 to 59">
+            <button class="step-btn step-up" data-target="inp-s" aria-label="Increase seconds">+</button>
+          </div>
+        </div>
+      </div>
+      <!-- Optional quick presets -->
+      <div class="presets" role="group" aria-label="Preset times">
+        <button class="preset-btn" data-min="1">1m</button>
+        <button class="preset-btn" data-min="5">5m</button>
+        <button class="preset-btn" data-min="10">10m</button>
+        <button class="preset-btn" data-min="15">15m</button>
+        <button class="preset-btn" data-min="30">30m</button>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls" role="group" aria-label="Timer controls">
+      <button class="btn btn-start" id="btn-startstop" aria-label="Start timer">Start</button>
+      <button class="btn btn-lap"   id="btn-lap"       aria-label="Record lap" disabled>Lap</button>
+      <button class="btn btn-clear" id="btn-clear"     aria-label="Clear timer">Clear</button>
+    </div>
+
+    <!-- Laps -->
+    <section class="laps-section" id="laps-section" aria-live="polite" aria-label="Lap times">
+      <h2>Laps</h2>
+      <ol class="lap-list" id="lap-list"></ol>
+    </section>
+
+    <!-- Keyboard hints -->
+    <p class="hint">
+      <kbd>Space</kbd> Start / Pause &nbsp;·&nbsp;
+      <kbd>L</kbd> Lap &nbsp;·&nbsp;
+      <kbd>R</kbd> Reset
+    </p>
+
+    <!-- Screen-reader live region -->
+    <div class="sr-only" aria-live="assertive" id="sr-status"></div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
